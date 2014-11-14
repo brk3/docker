@@ -33,6 +33,7 @@ import (
 	"github.com/docker/docker/pkg/units"
 	"github.com/docker/docker/pkg/urlutil"
 	"github.com/docker/docker/registry"
+	"github.com/docker/docker/runconfig"
 	"github.com/docker/docker/utils"
 )
 
@@ -66,6 +67,8 @@ func (cli *DockerCli) CmdBuild(args ...string) error {
 	ulimits := make(map[string]*ulimit.Ulimit)
 	flUlimits := opts.NewUlimitOpt(ulimits)
 	cmd.Var(flUlimits, []string{"-ulimit"}, "Ulimit options")
+	flEnv := opts.NewListOpts(opts.ValidateEnv)
+	cmd.Var(&flEnv, []string{"-build-env"}, "Set build-time environment variables")
 
 	cmd.Require(flag.Exact, 1)
 
@@ -297,6 +300,14 @@ func (cli *DockerCli) CmdBuild(args ...string) error {
 		return err
 	}
 	headers.Add("X-Registry-Config", base64.URLEncoding.EncodeToString(buf))
+
+	// collect all the build-time environment variables for the container
+	envVariables := runconfig.ConvertKVStringsToMap(flEnv.GetAll())
+	buf, err = json.Marshal(envVariables)
+	if err != nil {
+		return err
+	}
+	headers.Add("X-Docker-BuildEnv", base64.URLEncoding.EncodeToString(buf))
 
 	if context != nil {
 		headers.Set("Content-Type", "application/tar")
